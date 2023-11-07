@@ -7,11 +7,7 @@
 #include <netinet/in.h>
 #include <error.h>
 
-struct message_t
-{
-    char state[6];
-    char board[10];
-};
+#include "tateti.h"
 
 int wait_for_player(int sockfd)
 {
@@ -36,14 +32,14 @@ int init(int portno)
     serv_addr.sin_port = htons(portno);
 
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-        error(1, 0, "ERROR on binding\n");
+        error(1, 0, "ERROR on binding.\n");
 
     listen(sockfd, 2); // El servidor hablilita su socket para poder recibir conexiones, llamando a la función listen(). Los parametros son: el descriptor del socket y el numero maximo de conexiones en la cola de entrada
 
     return sockfd;
 }
 
-int exists_winner(int turn, char *board[], int last_to_play)
+int exists_winner(int turn, char *board)
 {
     //turn: es el nro del ultimo turno
     //board: el estado actual del tablero
@@ -67,18 +63,44 @@ int exists_winner(int turn, char *board[], int last_to_play)
         (board[8] != 0 && board[8] == board[4] && board[4] == board[1]))
         {
             // El ultimo en jugar es ganador
-            winner = last_to_play;
+            winner = 1;
         }
         else
         {
             //Si luego del turno 9 no hay ganadores tenemos un empate
-            if (turn == 9) 
+            if (turn >= 9) 
             {
                 winner = 0;
             }
         }
     }
     return winner;
+}
+
+int update_board(int player, char* state, char* board)
+{
+    /*  Retorna 0 si la jugada es válida, sino retorna -1 y no escribe el board */
+
+    int move = state[0]-48; /* atoi */
+
+    if(move < 0 || move > 9 || board[move]!=0)
+    {
+        return -1;
+    }
+
+    board[move] = player;
+    return 0;
+}
+
+void send_message(int to_sockfd, char* new_state, struct message_t* msg)
+{
+    memcpy(msg->state, new_state, MSG_STATE_SIZE);
+    write(to_sockfd, msg, MSG_SIZE);
+}
+
+void recv_message(int from_sockfd, struct message_t* msg)
+{
+    read(from_sockfd, (void*)&msg, MSG_SIZE);
 }
 
 int main(int argc, char *argv[])
@@ -88,60 +110,59 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        int player_sock[2];
+        int player[2];
+        struct message_t msg = {"", "000000000"};
 
         printf("Esperando por jugadores...\n");
 
-        player_sock[0] = wait_for_player(sockfd);
-        printf("Jugador 1 conectado\n");
-        write(player_sock[0], "UR P1", 6);
+        player[0] = wait_for_player(sockfd);
+        printf("Jugador %d conectado.\n", player[0]);
+        send_message(player[0], YOU_ARE_P1, &msg);
 
-        player_sock[1] = wait_for_player(sockfd);
-        printf("Jugador 2 conectado\n");
-        write(player_sock[1], "UR P2", 6);
+        player[1] = wait_for_player(sockfd);
+        printf("Jugador %d conectado.\n", player[1]);
+        send_message(player[1], YOU_ARE_P2, &msg);
 
         printf("Empezando partida...\n");
 
-        struct message_t msg = {"", "000000000"};
-        int winner = 0;
+        int winner = -1;
         int turn = 0;
 
-        while (!winner)
+        while (winner != -1)
         {
-            int player_playing = turn % 2;
-            int player_waiting = (turn + 1) % 2;
-            printf("Turno de Jugador %d...\n", player_playing + 1);
+            int player_playing = player[turn % 2];
+            int player_waiting = player[(turn + 1) % 2];
 
-            memcpy(msg.state, "PLAY", 6);
-            write(player_sock[player_playing], &msg, sizeof(struct message_t));
+            send_message(player_waiting, WAIT_FOR_TURN, &msg);
 
-            memcpy(msg.state, "WAIT", 6);
-            write(player_sock[player_waiting], &msg, sizeof(struct message_t));
+            printf("Turno de Jugador %d...\n", player_playing);
 
-            read(player_sock[player_playing], &msg, sizeof(struct message_t));
-            printf("Jugada de jugador %d: %s\n", player_playing + 1, msg.state);
-
+            do {
+                send_message(player_playing, IS_YOUR_TURN, &msg);
+                recv_message(player_playing, &msg);
+            }
+            /* hasta que se recibe una jugada valida */
+            while ( update_board(player_playing, msg.state, msg.board) == 0 );
+            
             turn++;
-            char *jugada_recibida = msg.state;
-
-            /* el tablero esta en msg.board
-                0 0 0
-                0 0 0
-                0 0 0
-                un 1 representa la ficha del jugador 1
-                un 2 representa la ficha del jugador 2
-            */
-
-            /*
-            Acá falta la logica:
-                si pasaron muchos turnos es empate
-                si la jugada es inválida, pedir otra
-                si alguien ganó, avisar
-                etc...
-            */
+            printf("Jugada recibida: %s\n", player_playing, msg.state);
 
            //Guardamos en winner si la partida sigue, es empate o alguien gano
-            winner = exists_winner(turn, *msg.board,player_playing);
+            winner = exists_winner(turn, msg.board);
+
+            switch(winner)
+            {
+                case 0: send_message(player_playing, GAME_IS_DRAW, &msg);
+                        send_message(player_waiting, GAME_IS_DRAW, &msg);
+                        printf("El juego es Empate!\n");
+                        break;
+                case 1: send_message(player_playing, YOU_WON, &msg);
+                        send_message(player_waiting, YOU_LOST, &msg);
+                        printf("Gana el Jugador %d!\n", player_playing);
+                        break;
+                default: 
+                        break;
+            }
         }
     }
 
