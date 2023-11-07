@@ -100,7 +100,7 @@ void send_message(int to_sockfd, char* new_state, struct message_t* msg)
 
 void recv_message(int from_sockfd, struct message_t* msg)
 {
-    read(from_sockfd, (void*)&msg, MSG_SIZE);
+    read(from_sockfd, (void*)msg, MSG_SIZE);
 }
 
 int main(int argc, char *argv[])
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
             while ( update_board(player_playing, msg.state, msg.board) == 0 );
             
             turn++;
-            printf("Jugada recibida: %s\n", player_playing, msg.state);
+            printf("Jugada recibida: %s\n", msg.state);
 
            //Guardamos en winner si la partida sigue, es empate o alguien gano
             winner = exists_winner(turn, msg.board);
