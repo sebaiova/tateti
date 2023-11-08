@@ -44,23 +44,23 @@ int exists_winner(int turn, char *board)
     //turn: es el nro del ultimo turno
     //board: el estado actual del tablero
     //last_to_play: el nro del ultimo jugador en hacer una jugada
-    //Este metodo retorna 0 si hay empate, -1 si se debe seguir jugando o el nro del jugador ganador en que caso de que exista un ganador
+    //Este metodo retorna 0 si hay empate, -1 si se debe seguir jugando y 1 si hay victoria
     
     int winner = -1;
-    
+
     //Si no pasaron 3 turnos no puede haber ganadores 
-    if (turn < 3) 
+    if (turn > 2) 
     {
         //Revisamos todas las filas , columnas y diagonales
-        if (turn >= 3 && 
-        (board[0] != 0 && board[0] == board[1] && board[1] == board[2]) ||
-        (board[3] != 0 && board[3] == board[4] && board[4] == board[5]) ||
-        (board[8] != 0 && board[6] == board[7] && board[7] == board[8]) ||
-        (board[0] != 0 && board[0] == board[3] && board[6] == board[2]) ||
-        (board[1] != 0 && board[1] == board[4] && board[4] == board[7]) ||
-        (board[8] != 0 && board[2] == board[5] && board[5] == board[8]) ||
-        (board[6] != 0 && board[6] == board[4] && board[4] == board[2]) ||
-        (board[8] != 0 && board[8] == board[4] && board[4] == board[1]))
+        if (
+        (board[0] != '0' && board[0] == board[1] && board[1] == board[2]) ||
+        (board[3] != '0' && board[3] == board[4] && board[4] == board[5]) ||
+        (board[8] != '0' && board[6] == board[7] && board[7] == board[8]) ||
+        (board[0] != '0' && board[0] == board[3] && board[6] == board[2]) ||
+        (board[1] != '0' && board[1] == board[4] && board[4] == board[7]) ||
+        (board[8] != '0' && board[2] == board[5] && board[5] == board[8]) ||
+        (board[6] != '0' && board[6] == board[4] && board[4] == board[2]) ||
+        (board[8] != '0' && board[8] == board[4] && board[4] == board[1]))
         {
             // El ultimo en jugar es ganador
             winner = 1;
@@ -77,30 +77,19 @@ int exists_winner(int turn, char *board)
     return winner;
 }
 
-int update_board(int player, char* state, char* board)
+int update_board(char token, char* state, char* board)
 {
-    /*  Retorna 0 si la jugada es válida, sino retorna -1 y no escribe el board */
+    /*  Retorna 0 si la jugada es válida, sino, retorna -1 y no escribe el board */
 
     int move = state[0]-48; /* atoi */
 
-    if(move < 0 || move > 9 || board[move]!=0)
+    if(move < 0 || move > 9 || board[move]!='0')
     {
         return -1;
     }
 
-    board[move] = player;
+    board[move] = token;
     return 0;
-}
-
-void send_message(int to_sockfd, char* new_state, struct message_t* msg)
-{
-    memcpy(msg->state, new_state, MSG_STATE_SIZE);
-    write(to_sockfd, msg, MSG_SIZE);
-}
-
-void recv_message(int from_sockfd, struct message_t* msg)
-{
-    read(from_sockfd, (void*)msg, MSG_SIZE);
 }
 
 int main(int argc, char *argv[])
@@ -128,8 +117,10 @@ int main(int argc, char *argv[])
         int winner = -1;
         int turn = 0;
 
-        while (winner != -1)
+        while (winner == -1)
         {
+            char token = ((turn % 2) + 1) + 48; /* para escribir en el tablero la jugada. Jugador '1' y '2' */
+
             int player_playing = player[turn % 2];
             int player_waiting = player[(turn + 1) % 2];
 
@@ -142,14 +133,13 @@ int main(int argc, char *argv[])
                 recv_message(player_playing, &msg);
             }
             /* hasta que se recibe una jugada valida */
-            while ( update_board(player_playing, msg.state, msg.board) == 0 );
+            while ( update_board(token, msg.state, msg.board) != 0 );
             
             turn++;
             printf("Jugada recibida: %s\n", msg.state);
 
            //Guardamos en winner si la partida sigue, es empate o alguien gano
             winner = exists_winner(turn, msg.board);
-
             switch(winner)
             {
                 case 0: send_message(player_playing, GAME_IS_DRAW, &msg);
@@ -164,6 +154,9 @@ int main(int argc, char *argv[])
                         break;
             }
         }
+
+        close(player[0]);
+        close(player[1]);
     }
 
     return 0;
