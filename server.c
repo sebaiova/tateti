@@ -43,7 +43,6 @@ int exists_winner(int turn, char *board)
 {
     //turn: es el nro del ultimo turno
     //board: el estado actual del tablero
-    //last_to_play: el nro del ultimo jugador en hacer una jugada
     //Este metodo retorna 0 si hay empate, -1 si se debe seguir jugando y 1 si hay victoria
     
     int winner = -1;
@@ -60,7 +59,7 @@ int exists_winner(int turn, char *board)
         (board[1] != '0' && board[1] == board[4] && board[4] == board[7]) ||
         (board[8] != '0' && board[2] == board[5] && board[5] == board[8]) ||
         (board[6] != '0' && board[6] == board[4] && board[4] == board[2]) ||
-        (board[8] != '0' && board[8] == board[4] && board[4] == board[1]))
+        (board[8] != '0' && board[8] == board[4] && board[4] == board[0]))
         {
             // El ultimo en jugar es ganador
             winner = 1;
