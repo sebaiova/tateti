@@ -120,7 +120,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("God bye!\n");
     close(sock);
 
     return 0;
