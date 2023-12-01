@@ -13,7 +13,7 @@ int wait_for_player(int sockfd)
 {
     int player_sock;
     struct sockaddr_in cli_addr;
-    int clilen = sizeof(cli_addr);
+    unsigned int clilen = sizeof(cli_addr);
 
     while ((player_sock = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen)) < 0)
         close(player_sock);
